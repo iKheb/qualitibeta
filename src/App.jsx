@@ -101,7 +101,7 @@ const getPhotoPath = (photo) => {
 const buildRepairWhatsAppMessage = (repair) => {
   const photoUrls = (repair.fotos || []).map(getPhotoUrl).filter(Boolean);
   const lines = [
-    'QUALITY - REGISTRO DE SERVICIO TECNICO',
+    'MOVILCELL - REGISTRO DE SERVICIO TECNICO',
     '',
     `Cliente: ${repair.nombre || ''} ${repair.apellido || ''}`.trim(),
     `Cedula: ${repair.cedula || 'Sin dato'}`,
