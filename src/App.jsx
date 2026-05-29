@@ -101,7 +101,7 @@ const getPhotoPath = (photo) => {
 const buildRepairWhatsAppMessage = (repair) => {
   const photoUrls = (repair.fotos || []).map(getPhotoUrl).filter(Boolean);
   const lines = [
-    'MOVILCELL - REGISTRO DE SERVICIO TECNICO',
+    'QUALITY - REGISTRO DE SERVICIO TECNICO',
     '',
     `Cliente: ${repair.nombre || ''} ${repair.apellido || ''}`.trim(),
     `Cedula: ${repair.cedula || 'Sin dato'}`,
@@ -639,7 +639,7 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
 
             <PhotoStrip photos={repair.fotos || []} />
 
-            <div className="button-row">
+            <div className="button-row repair-actions">
               <button type="button" className="secondary-button" onClick={() => onEdit(repair)}>
                 <Edit3 size={17} />
                 Abrir
@@ -653,10 +653,10 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
                 <ReceiptText size={17} />
                 WhatsApp
               </button>
+              <button type="button" className="danger-button icon-only card-delete-button" onClick={() => setDeleteTarget(repair)} title="Eliminar" aria-label="Eliminar">
+                <Trash2 size={20} />
+              </button>
             </div>
-            <button type="button" className="danger-button icon-only card-delete-button" onClick={() => setDeleteTarget(repair)} title="Eliminar" aria-label="Eliminar">
-              <Trash2 size={17} />
-            </button>
           </article>
         ))}
       </div>
@@ -1053,7 +1053,7 @@ function ExpenseForm({ expenses }) {
           </thead>
           <tbody>
             {filteredExpenses.length === 0 && (
-              <tr>
+              <tr className="empty-row">
                 <td colSpan="5">
                   <EmptyState text="No hay gastos registrados." />
                 </td>
@@ -1061,11 +1061,11 @@ function ExpenseForm({ expenses }) {
             )}
             {filteredExpenses.map((expense) => (
               <tr key={expense.id}>
-                <td>{formatDate(expense.fecha)}</td>
-                <td>{expense.concepto}</td>
-                <td className="negative">{formatMoney(expense.monto)}</td>
-                <td>{expense.fecha_actualizacion ? formatDate(expense.fecha_actualizacion) : 'Sin cambios'}</td>
-                <td>
+                <td data-label="Fecha">{formatDate(expense.fecha)}</td>
+                <td data-label="Concepto">{expense.concepto}</td>
+                <td data-label="Monto" className="negative">{formatMoney(expense.monto)}</td>
+                <td data-label="Actualizado">{expense.fecha_actualizacion ? formatDate(expense.fecha_actualizacion) : 'Sin cambios'}</td>
+                <td data-label="Acciones">
                   <div className="table-actions">
                     <button type="button" className="icon-link warning" onClick={() => editExpense(expense)} title="Editar" aria-label="Editar">
                       <Edit3 size={17} />
