@@ -117,15 +117,22 @@ pre {
 .icon-button,
 .icon-only,
 .icon-link {
-  width: var(--control-height);
-  height: var(--control-height);
-  min-width: var(--control-height);
+  width: 2.4rem;
+  height: 2.4rem;
+  min-width: 2.4rem;
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
   border: 1px solid var(--line-soft);
   background: #030712;
   color: var(--blue-bright);
+}
+
+.icon-button svg,
+.icon-only svg,
+.icon-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 .icon-button:hover,
@@ -1000,9 +1007,16 @@ td {
   .icon-button,
   .icon-only,
   .icon-link {
-    width: 2.65rem;
-    height: 2.65rem;
-    min-width: 2.65rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    min-width: 2.2rem;
+  }
+
+  .icon-button svg,
+  .icon-only svg,
+  .icon-link svg {
+    width: 17px;
+    height: 17px;
   }
 
   .main-content {
@@ -1106,8 +1120,9 @@ td {
     display: block;
     border: 1px solid var(--line-soft);
     border-radius: 8px;
-    padding: 0.75rem;
+    padding: 1rem;
     background: var(--panel);
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.04), var(--shadow);
   }
 
   .table-wrap tbody tr:last-child {
@@ -1127,7 +1142,21 @@ td {
     display: block;
     color: var(--blue-bright);
     margin-bottom: 0.2rem;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
+  }
+
+  .table-wrap td[data-label="Acciones"] {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid rgba(37, 99, 235, 0.16);
+  }
+
+  .table-wrap td[data-label="Acciones"]::before {
+    display: none;
   }
 
   .table-wrap thead {
@@ -1463,6 +1492,21 @@ td {
   .repair-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .icon-button,
+  .icon-only,
+  .icon-link {
+    width: 2.2rem;
+    height: 2.2rem;
+    min-width: 2.2rem;
+  }
+
+  .icon-button svg,
+  .icon-only svg,
+  .icon-link svg {
+    width: 17px;
+    height: 17px;
+  }
 }
 
 /* Mejoras de centrado y simetria */
@@ -1501,3 +1545,72 @@ td {
     min-height: 44px;
   }
 }
+
+.expenses-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.expense-card {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 1rem;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.04), var(--shadow);
+}
+
+.expense-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.16);
+}
+
+.expense-date-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--blue-bright);
+}
+
+.expense-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expense-content {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.expense-concept {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--blue-bright);
+  font-weight: 700;
+}
+
+.expense-amount {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.expense-updated {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+  .expenses-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+

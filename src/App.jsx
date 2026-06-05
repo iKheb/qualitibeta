@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  Calendar,
   Camera,
   CheckCircle2,
   ClipboardList,
@@ -110,7 +111,7 @@ const getPhotoPath = (photo) => {
 const buildRepairWhatsAppMessage = (repair) => {
   const photoUrls = (repair.fotos || []).map(getPhotoUrl).filter(Boolean);
   const lines = [
-    'QUALITY - REGISTRO DE SERVICIO TECNICO',
+    'MOVILCELL - REGISTRO DE SERVICIO TECNICO',
     '',
     `Cliente: ${repair.nombre || ''} ${repair.apellido || ''}`.trim(),
     `Cedula: ${repair.cedula || 'Sin dato'}`,
@@ -407,7 +408,15 @@ function App() {
       {error && <SystemMessage type="error" message={error} />}
 
       {activeTab === 'dashboard' && (
-        <Dashboard finance={finance} repairs={repairs} expenses={expenses} onEdit={(repair) => navigate('new', repair)} userRole={userRole} />
+        <Dashboard
+          finance={finance}
+          repairs={repairs}
+          expenses={expenses}
+          onEdit={(repair) => navigate('new', repair)}
+          userRole={userRole}
+          onEnableNotifications={enableNotifications}
+          notificationStatus={notificationStatus}
+        />
       )}
 
       {activeTab === 'list' && (
@@ -469,17 +478,6 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
               </button>
             );
           })}
-          {onEnableNotifications && (
-            <button
-              type="button"
-              className={`icon-button notification-button ${notificationStatus === 'granted' ? 'active' : ''} ${notificationStatus === 'denied' ? 'blocked' : ''}`}
-              onClick={onEnableNotifications}
-              title={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
-              aria-label={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
-            >
-              <Bell size={20} />
-            </button>
-          )}
           <button
             type="button"
             className="icon-button logout-button"
@@ -581,7 +579,7 @@ function SystemMessage({ type = 'info', message }) {
   );
 }
 
-function Dashboard({ finance, repairs, expenses, onEdit, userRole }) {
+function Dashboard({ finance, repairs, expenses, onEdit, userRole, onEnableNotifications, notificationStatus }) {
   const [activeSearch, setActiveSearch] = useState('');
   const [expenseSearch, setExpenseSearch] = useState('');
   const activeRepairs = repairs.filter((repair) => ['Recibido', 'Reparado', 'Garantia'].includes(repair.estado)).length;
@@ -616,6 +614,19 @@ function Dashboard({ finance, repairs, expenses, onEdit, userRole }) {
       <ViewHeader
         title={userRole === 'admin' ? 'Telemetria operativa' : 'Panel de control'}
         subtitle={userRole === 'admin' ? 'Control diario de ordenes, ingresos, egresos y equipos activos.' : 'Control de ordenes activas y gastos.'}
+        action={
+          onEnableNotifications && (
+            <button
+              type="button"
+              className={`icon-button notification-button ${notificationStatus === 'granted' ? 'active' : ''} ${notificationStatus === 'denied' ? 'blocked' : ''}`}
+              onClick={onEnableNotifications}
+              title={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
+              aria-label={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
+            >
+              <Bell size={20} />
+            </button>
+          )
+        }
       />
 
       {userRole === 'admin' && (
