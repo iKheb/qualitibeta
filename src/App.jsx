@@ -668,6 +668,7 @@ function Dashboard({ finance, repairs, expenses, onEdit, userRole, onEnableNotif
                 <span>
                   <strong>{repair.nombre} {repair.apellido}</strong>
                   <small>{repair.marca} {repair.modelo}</small>
+                  <small>Recibido por: {repair.recibido_por}</small>
                 </span>
                 <StatusBadge status={repair.estado} />
               </button>
@@ -826,6 +827,7 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
               <div><dt>Garantia</dt><dd>{repair.dias_garantia || 0} dias</dd></div>
               <div><dt>Condicion</dt><dd>{repair.estado_recepcion || 'Sin dato'}</dd></div>
               <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}</dd></div>
+              <div><dt>Recibido por</dt><dd>{repair.recibido_por}</dd></div>
               <div><dt>Ingreso</dt><dd>{formatDate(repair.fecha_ingreso)}</dd></div>
               <div><dt>Actualizado</dt><dd>{repair.fecha_actualizacion ? formatDate(repair.fecha_actualizacion) : 'Sin cambios'}</dd></div>
             </dl>
@@ -1068,10 +1070,10 @@ function RepairForm({ initialData, onComplete }) {
           <TextAreaField label="Observaciones" name="observaciones" value={formData.observaciones} onChange={handleChange} required className="wide" />
           <InputField label="Dias de garantia" name="dias_garantia" type="number" min="0" value={formData.dias_garantia} onChange={handleChange} required />
           <InputField label="Precio total" name="precio" type="number" min="0" step="100" value={formData.precio} onChange={handleChange} required />
-          <InputField label="PIN / contrasena del equipo" name="clave_equipo" value={formData.clave_equipo} onChange={handleChange} autoComplete="off" />
           <SelectField label="Condicion de recepcion" name="estado_recepcion" value={formData.estado_recepcion} onChange={handleChange} options={RECEPTION_OPTIONS} required />
           <SelectField label="Estado de reparacion" name="estado" value={formData.estado} onChange={handleChange} options={STATUS_OPTIONS} required />
           <InputField label="Recibido por" name="recibido_por" value={formData.recibido_por} onChange={handleChange} required />
+          <InputField label="PIN / contrasena del equipo" name="clave_equipo" value={formData.clave_equipo} onChange={handleChange} autoComplete="off" />
           <PatternLockField
             label="Patron del equipo"
             value={formData.patron_equipo}
@@ -1366,7 +1368,7 @@ function PatternLockField({ label, value = [], onChange, className = '' }) {
           );
         })}
       </div>
-      <small>{pattern.length ? `Patron guardado: ${pattern.join('-')}` : 'Opcional si el equipo no tiene PIN o contrasena.'}</small>
+      <small>{pattern.length ? `Patron guardado: ${pattern.join('-')}` : 'Opcional si el equipo no tiene PIN, contrasena o patron.'}</small>
     </div>
   );
 }
