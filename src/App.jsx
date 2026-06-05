@@ -481,13 +481,9 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
           <button
             type="button"
             className="icon-button"
-            onClick={() => {
-              if (isUnlocked && isSupabaseConfigured) {
-                loadData();
-              }
-            }}
-            title="Actualizar datos"
-            aria-label="Actualizar datos"
+            onClick={() => window.location.reload()}
+            title="Actualizar pagina"
+            aria-label="Actualizar pagina"
           >
             <RefreshCw size={20} />
           </button>
