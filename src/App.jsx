@@ -15,6 +15,7 @@ import {
   LogOut,
   Plus,
   ReceiptText,
+  RefreshCw,
   Save,
   Search,
   Smartphone,
@@ -458,7 +459,6 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
     <div className="app-shell">
       <nav className="topbar">
         <button className="brand" type="button" onClick={() => navigate('dashboard')} aria-label="Ir al panel">
-          <Wrench size={22} />
           <span>Quality</span>
         </button>
 
@@ -478,6 +478,19 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
               </button>
             );
           })}
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => {
+              if (isUnlocked && isSupabaseConfigured) {
+                loadData();
+              }
+            }}
+            title="Actualizar datos"
+            aria-label="Actualizar datos"
+          >
+            <RefreshCw size={20} />
+          </button>
           <button
             type="button"
             className="icon-button logout-button"
@@ -614,19 +627,6 @@ function Dashboard({ finance, repairs, expenses, onEdit, userRole, onEnableNotif
       <ViewHeader
         title={userRole === 'admin' ? 'Telemetria operativa' : 'Panel de control'}
         subtitle={userRole === 'admin' ? 'Control diario de ordenes, ingresos, egresos y equipos activos.' : 'Control de ordenes activas y gastos.'}
-        action={
-          onEnableNotifications && (
-            <button
-              type="button"
-              className={`icon-button notification-button ${notificationStatus === 'granted' ? 'active' : ''} ${notificationStatus === 'denied' ? 'blocked' : ''}`}
-              onClick={onEnableNotifications}
-              title={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
-              aria-label={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
-            >
-              <Bell size={20} />
-            </button>
-          )
-        }
       />
 
       {userRole === 'admin' && (
