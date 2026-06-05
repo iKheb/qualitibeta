@@ -1657,3 +1657,16 @@ td {
     grid-template-columns: repeat(2, 1fr);
   }
 
+
+.app-footer {
+  text-align: center;
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+  margin-top: auto;
+}
+
+.app-footer p {
+  margin: 0;
+}

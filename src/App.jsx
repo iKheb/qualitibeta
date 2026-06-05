@@ -500,6 +500,10 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
       </nav>
 
       <main className="main-content">{children}</main>
+
+      <footer className="app-footer">
+        <p>&copy; {new Date().getFullYear()} Quality. Todos los derechos reservados.</p>
+      </footer>
     </div>
   );
 }
