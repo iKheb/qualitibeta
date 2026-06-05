@@ -10,17 +10,30 @@ create table if not exists public.repairs (
   cedula text,
   telefono text,
   direccion text,
+  recibido_por text not null default '',
   marca text not null,
   modelo text not null,
   reparacion text not null,
   observaciones text not null,
   dias_garantia integer not null default 0,
   precio numeric(14, 2) not null default 0,
-  estado text not null default 'Recibido' check (estado in ('Recibido', 'Reparado', 'Entregado', 'Devuelto')),
+  clave_equipo text not null default '',
+  patron_equipo jsonb not null default '[]'::jsonb,
+  estado text not null default 'Recibido' check (estado in ('Recibido', 'Reparado', 'Garantia', 'Entregado', 'Devuelto')),
   estado_recepcion text not null default 'Encendido',
   fotos jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.repairs
+  add column if not exists recibido_por text not null default '',
+  add column if not exists clave_equipo text not null default '',
+  add column if not exists patron_equipo jsonb not null default '[]'::jsonb;
+
+alter table public.repairs drop constraint if exists repairs_estado_check;
+alter table public.repairs
+  add constraint repairs_estado_check
+  check (estado in ('Recibido', 'Reparado', 'Garantia', 'Entregado', 'Devuelto'));
 
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),

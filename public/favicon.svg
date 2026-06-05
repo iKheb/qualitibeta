@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Quality</title>
+  <rect width="64" height="64" rx="12" fill="#02040a"/>
+  <path d="M14 43V21c0-4 3-7 7-7h22c4 0 7 3 7 7v22c0 4-3 7-7 7H21c-4 0-7-3-7-7Z" fill="#07132a" stroke="#2563eb" stroke-width="2"/>
+  <path d="M22 33c0-6 4-11 10-11s10 5 10 11c0 3-1 6-3 8l4 4-4 4-5-5c-1 0-2 .5-3 .5-5.5 0-9-5-9-11.5Z" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 28v10M27 33h10" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -5,3 +5,5 @@ dist
 .DS_Store
 vite-dev.log
 vite-dev.err.log
+vite-preview.log
+vite-preview.err.log

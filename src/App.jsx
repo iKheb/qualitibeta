@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
+  Bell,
   Camera,
   CheckCircle2,
+  ClipboardList,
   DollarSign,
   Edit3,
   Image as ImageIcon,
@@ -21,11 +23,15 @@ import {
   X,
 } from 'lucide-react';
 import { PHOTO_BUCKET, isSupabaseConfigured, supabase } from './supabaseClient';
+import LogsView from './LogsView';
 
-const ACCESS_PASSWORD = import.meta.env.VITE_ACCESS_PASSWORD || '25913229';
+const ACCESS_PASSWORDS = {
+  basic: import.meta.env.VITE_ACCESS_PASSWORD || '25913229',
+  admin: '11316828',
+};
 const MAX_PHOTOS = 8;
 
-const STATUS_OPTIONS = ['Recibido', 'Reparado', 'Entregado', 'Devuelto'];
+const STATUS_OPTIONS = ['Recibido', 'Reparado', 'Garantia', 'Entregado', 'Devuelto'];
 const RECEPTION_OPTIONS = [
   'Encendido',
   'Apagado',
@@ -42,12 +48,15 @@ const emptyRepair = {
   cedula: '',
   telefono: '',
   direccion: '',
+  recibido_por: '',
   marca: '',
   modelo: '',
   reparacion: '',
   observaciones: '',
   dias_garantia: '',
   precio: '',
+  clave_equipo: '',
+  patron_equipo: [],
   estado: 'Recibido',
   estado_recepcion: 'Encendido',
   fotos: [],
@@ -136,15 +145,65 @@ const openRepairWhatsApp = (repair) => {
   window.open(`https://api.whatsapp.com/send?${phoneParam}text=${text}`, '_blank', 'noopener,noreferrer');
 };
 
+const getLogStatus = (log) => {
+  return log?.changed_fields?.estado?.new || '';
+};
+
+const shouldNotifyLog = (log) => {
+  const status = getLogStatus(log);
+  return log?.action === 'created' || (log?.action === 'status_changed' && ['Reparado', 'Entregado', 'Devuelto', 'Garantia'].includes(status));
+};
+
+const getNotificationCopy = (log) => {
+  const label = log.repair_label || 'Equipo sin nombre';
+  const status = getLogStatus(log);
+
+  if (log.action === 'created') {
+    return {
+      title: 'Nuevo servicio tecnico recibido',
+      body: `${label} fue registrado en Quality.`,
+    };
+  }
+
+  const statusMessages = {
+    Reparado: 'Equipo reparado',
+    Entregado: 'Equipo entregado',
+    Devuelto: 'Equipo devuelto',
+    Garantia: 'Equipo recibido por garantia',
+  };
+
+  return {
+    title: statusMessages[status] || 'Cambio en equipo',
+    body: `${label} cambio a estado ${status || 'actualizado'}.`,
+  };
+};
+
+const formatPattern = (pattern) => {
+  if (!Array.isArray(pattern) || pattern.length === 0) return '';
+  return pattern.join('-');
+};
+
+const showRepairNotification = async (log) => {
+  if (!shouldNotifyLog(log) || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const { title, body } = getNotificationCopy(log);
+  new Notification(title, { body, icon: '/icons/icon-192.png' });
+};
+
 function App() {
   const [isUnlocked, setIsUnlocked] = useState(() => sessionStorage.getItem('quality-unlocked') === 'true');
+  const [userRole, setUserRole] = useState(() => sessionStorage.getItem('quality-role') || 'basic');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [repairs, setRepairs] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [currentRepair, setCurrentRepair] = useState(emptyRepair);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(() => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
+  const [notificationStatus, setNotificationStatus] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
 
   const loadData = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -155,9 +214,10 @@ function App() {
     setLoading(true);
     setError('');
 
-    const [repairsResponse, expensesResponse] = await Promise.all([
+    const [repairsResponse, expensesResponse, logsResponse] = await Promise.all([
       supabase.from('repairs').select('*').order('fecha_ingreso', { ascending: false }),
       supabase.from('expenses').select('*').order('fecha', { ascending: false }),
+      supabase.from('repair_logs').select('*').order('created_at', { ascending: false }).limit(300),
     ]);
 
     if (repairsResponse.error || expensesResponse.error) {
@@ -169,6 +229,7 @@ function App() {
 
     setRepairs(repairsResponse.data || []);
     setExpenses(expensesResponse.data || []);
+    if (!logsResponse.error) setLogs(logsResponse.data || []);
     setLoading(false);
   }, []);
 
@@ -181,15 +242,32 @@ function App() {
     loadData();
 
     const channel = supabase
-      .channel('quality-repair-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, loadData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, loadData)
-      .subscribe();
+      .channel('quality-repair-live', { config: { broadcast: { ack: true } } })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, () => {
+        console.log('Cambio detectado en repairs');
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
+        console.log('Cambio detectado en expenses');
+        loadData();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'repair_logs' }, (payload) => {
+        console.log('Nuevo log insertado:', payload);
+        setLogs((currentLogs) => [payload.new, ...currentLogs.filter((log) => log.id !== payload.new.id)].slice(0, 300));
+        showRepairNotification(payload.new);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Suscripción a Supabase Realtime establecida correctamente');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error en la suscripción a Supabase Realtime');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isUnlocked, loadData]);
+  }, [isUnlocked, loadData, showRepairNotification]);
 
   const finance = useMemo(() => {
     const today = startOfToday();
@@ -218,9 +296,11 @@ function App() {
     return { ingresosHoy, ingresosSemana, gastosHoy, gastosSemana };
   }, [repairs, expenses]);
 
-  const unlock = () => {
+  const unlock = (role = 'basic') => {
     sessionStorage.setItem('quality-unlocked', 'true');
+    sessionStorage.setItem('quality-role', role);
     setIsUnlocked(true);
+    setUserRole(role);
   };
 
   const navigate = (tab, repair = null) => {
@@ -230,9 +310,77 @@ function App() {
 
   const lockSession = () => {
     sessionStorage.removeItem('quality-unlocked');
+    sessionStorage.removeItem('quality-role');
     setActiveTab('dashboard');
     setIsUnlocked(false);
+    setUserRole('basic');
   };
+
+  const enableNotifications = async () => {
+    if (!('Notification' in window)) {
+      setNotificationStatus('unsupported');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationStatus(permission);
+  };
+
+  const installApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+      setIsInstalled(true);
+    }
+  };
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  useEffect(() => {
+    if (!isUnlocked || !isSupabaseConfigured) {
+      setLoading(false);
+      return undefined;
+    }
+
+    loadData();
+
+    const channelName = `quality-repair-live-${Date.now()}`;
+    const channel = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, () => {
+        console.log('Cambio detectado en repairs');
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
+        console.log('Cambio detectado en expenses');
+        loadData();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'repair_logs' }, (payload) => {
+        console.log('Nuevo log insertado:', payload);
+        setLogs((currentLogs) => [payload.new, ...currentLogs.filter((log) => log.id !== payload.new.id)].slice(0, 300));
+        showRepairNotification(payload.new);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Suscripción a Supabase Realtime establecida correctamente');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error en la suscripción a Supabase Realtime');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isUnlocked, loadData]);
 
   if (!isUnlocked) return <LoginScreen onUnlock={unlock} />;
 
@@ -240,18 +388,26 @@ function App() {
 
   if (loading) {
     return (
-      <Shell activeTab={activeTab} navigate={navigate} onLock={lockSession}>
+      <Shell activeTab={activeTab} navigate={navigate} onLock={lockSession} userRole={userRole}>
         <LoadingState />
       </Shell>
     );
   }
 
   return (
-    <Shell activeTab={activeTab} navigate={navigate} onLock={lockSession}>
+    <Shell
+      activeTab={activeTab}
+      navigate={navigate}
+      onLock={lockSession}
+      userRole={userRole}
+      onInstall={installPrompt && !isInstalled ? installApp : null}
+      onEnableNotifications={notificationStatus !== 'unsupported' ? enableNotifications : null}
+      notificationStatus={notificationStatus}
+    >
       {error && <SystemMessage type="error" message={error} />}
 
       {activeTab === 'dashboard' && (
-        <Dashboard finance={finance} repairs={repairs} expenses={expenses} onEdit={(repair) => navigate('new', repair)} />
+        <Dashboard finance={finance} repairs={repairs} expenses={expenses} onEdit={(repair) => navigate('new', repair)} userRole={userRole} />
       )}
 
       {activeTab === 'list' && (
@@ -270,16 +426,23 @@ function App() {
       {activeTab === 'expenses' && (
         <ExpenseForm expenses={expenses} />
       )}
+
+      {activeTab === 'logs' && (
+        <LogsView logs={logs} />
+      )}
     </Shell>
   );
 }
 
-function Shell({ activeTab, navigate, onLock, children }) {
+function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotifications, notificationStatus, children }) {
   const navItems = [
     { id: 'dashboard', label: 'Panel', icon: Activity },
     { id: 'list', label: 'Ordenes', icon: List },
     { id: 'new', label: 'Nuevo', icon: Plus },
-    { id: 'expenses', label: 'Gastos', icon: DollarSign },
+    ...(userRole === 'admin' ? [
+      { id: 'expenses', label: 'Gastos', icon: DollarSign },
+      { id: 'logs', label: 'Logs', icon: ClipboardList },
+    ] : []),
   ];
 
   return (
@@ -306,6 +469,17 @@ function Shell({ activeTab, navigate, onLock, children }) {
               </button>
             );
           })}
+          {onEnableNotifications && (
+            <button
+              type="button"
+              className={`icon-button notification-button ${notificationStatus === 'granted' ? 'active' : ''} ${notificationStatus === 'denied' ? 'blocked' : ''}`}
+              onClick={onEnableNotifications}
+              title={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
+              aria-label={notificationStatus === 'granted' ? 'Notificaciones activas' : 'Activar notificaciones'}
+            >
+              <Bell size={20} />
+            </button>
+          )}
           <button
             type="button"
             className="icon-button logout-button"
@@ -329,8 +503,12 @@ function LoginScreen({ onUnlock }) {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    if (password === ACCESS_PASSWORD) {
-      onUnlock();
+    if (password === ACCESS_PASSWORDS.admin) {
+      onUnlock('admin');
+      return;
+    }
+    if (password === ACCESS_PASSWORDS.basic) {
+      onUnlock('basic');
       return;
     }
 
@@ -403,10 +581,10 @@ function SystemMessage({ type = 'info', message }) {
   );
 }
 
-function Dashboard({ finance, repairs, expenses, onEdit }) {
+function Dashboard({ finance, repairs, expenses, onEdit, userRole }) {
   const [activeSearch, setActiveSearch] = useState('');
   const [expenseSearch, setExpenseSearch] = useState('');
-  const activeRepairs = repairs.filter((repair) => ['Recibido', 'Reparado'].includes(repair.estado)).length;
+  const activeRepairs = repairs.filter((repair) => ['Recibido', 'Reparado', 'Garantia'].includes(repair.estado)).length;
   const deliveredToday = repairs.filter((repair) => {
     if (repair.estado !== 'Entregado') return false;
     const timestamp = new Date(repair.fecha_entregado || repair.fecha_actualizacion || repair.fecha_ingreso).getTime();
@@ -436,32 +614,36 @@ function Dashboard({ finance, repairs, expenses, onEdit }) {
   return (
     <section className="view-stack">
       <ViewHeader
-        title="Telemetria operativa"
-        subtitle="Control diario de ordenes, ingresos, egresos y equipos activos."
+        title={userRole === 'admin' ? 'Telemetria operativa' : 'Panel de control'}
+        subtitle={userRole === 'admin' ? 'Control diario de ordenes, ingresos, egresos y equipos activos.' : 'Control de ordenes activas y gastos.'}
       />
 
-      <div className="metric-grid">
-        <StatCard title="Ingresos hoy" value={formatMoney(finance.ingresosHoy)} tone="income" />
-        <StatCard title="Ingresos semana" value={formatMoney(finance.ingresosSemana)} tone="income" />
-        <StatCard title="Gastos hoy" value={formatMoney(finance.gastosHoy)} tone="expense" />
-        <StatCard title="Gastos semana" value={formatMoney(finance.gastosSemana)} tone="expense" />
-      </div>
+      {userRole === 'admin' && (
+        <>
+          <div className="metric-grid">
+            <StatCard title="Ingresos hoy" value={formatMoney(finance.ingresosHoy)} tone="income" />
+            <StatCard title="Ingresos semana" value={formatMoney(finance.ingresosSemana)} tone="income" />
+            <StatCard title="Gastos hoy" value={formatMoney(finance.gastosHoy)} tone="expense" />
+            <StatCard title="Gastos semana" value={formatMoney(finance.gastosSemana)} tone="expense" />
+          </div>
 
-      <div className="dashboard-grid">
-        <Panel title="Equipos en taller" icon={Smartphone}>
-          <strong className="big-number">{activeRepairs}</strong>
-          <span className="muted">Recibidos o reparados pendientes de salida</span>
-        </Panel>
+          <div className="dashboard-grid">
+            <Panel title="Equipos en taller" icon={Smartphone}>
+              <strong className="big-number">{activeRepairs}</strong>
+              <span className="muted">Recibidos o reparados pendientes de salida</span>
+            </Panel>
 
-        <Panel title="Rentabilidad semanal" icon={Activity}>
-          <strong className={`big-number ${finance.ingresosSemana - finance.gastosSemana >= 0 ? 'positive' : 'negative'}`}>
-            {formatMoney(finance.ingresosSemana - finance.gastosSemana)}
-          </strong>
-          <span className="muted">{deliveredToday} ordenes entregadas hoy</span>
-        </Panel>
-      </div>
+            <Panel title="Rentabilidad semanal" icon={Activity}>
+              <strong className={`big-number ${finance.ingresosSemana - finance.gastosSemana >= 0 ? 'positive' : 'negative'}`}>
+                {formatMoney(finance.ingresosSemana - finance.gastosSemana)}
+              </strong>
+              <span className="muted">{deliveredToday} ordenes entregadas hoy</span>
+            </Panel>
+          </div>
+        </>
+      )}
 
-      <div className="dashboard-grid">
+      <div className={`dashboard-grid ${userRole === 'basic' ? 'single-panel' : ''}`}>
         <Panel title="Ordenes activas recientes" icon={List}>
           <CompactSearch
             value={activeSearch}
@@ -802,12 +984,15 @@ function RepairForm({ initialData, onComplete }) {
         cedula: formData.cedula.trim(),
         telefono: formData.telefono.trim(),
         direccion: formData.direccion.trim(),
+        recibido_por: formData.recibido_por.trim(),
         marca: formData.marca.trim(),
         modelo: formData.modelo.trim(),
         reparacion: formData.reparacion.trim(),
         observaciones: formData.observaciones.trim(),
         dias_garantia: Number.parseInt(formData.dias_garantia, 10) || 0,
         precio: parseAmount(formData.precio),
+        clave_equipo: formData.clave_equipo.trim(),
+        patron_equipo: Array.isArray(formData.patron_equipo) ? formData.patron_equipo : [],
         estado: formData.estado,
         estado_recepcion: formData.estado_recepcion,
         fotos: uploadedPhotos,
@@ -872,44 +1057,51 @@ function RepairForm({ initialData, onComplete }) {
           <TextAreaField label="Observaciones" name="observaciones" value={formData.observaciones} onChange={handleChange} required className="wide" />
           <InputField label="Dias de garantia" name="dias_garantia" type="number" min="0" value={formData.dias_garantia} onChange={handleChange} required />
           <InputField label="Precio total" name="precio" type="number" min="0" step="100" value={formData.precio} onChange={handleChange} required />
+          <InputField label="PIN / contrasena del equipo" name="clave_equipo" value={formData.clave_equipo} onChange={handleChange} autoComplete="off" />
           <SelectField label="Condicion de recepcion" name="estado_recepcion" value={formData.estado_recepcion} onChange={handleChange} options={RECEPTION_OPTIONS} required />
           <SelectField label="Estado de reparacion" name="estado" value={formData.estado} onChange={handleChange} options={STATUS_OPTIONS} required />
-        </fieldset>
+          <InputField label="Recibido por" name="recibido_por" value={formData.recibido_por} onChange={handleChange} required />
+          <PatternLockField
+            label="Patron del equipo"
+            value={formData.patron_equipo}
+            onChange={(pattern) => setFormData((current) => ({ ...current, patron_equipo: pattern }))}
+          />
 
-        <section className="photo-uploader">
-          <div className="photo-header">
-            <div>
-              <h2>Evidencia fotografica</h2>
-              <p>{photos.length}/{MAX_PHOTOS} imagenes del estado del equipo</p>
-            </div>
-            <UploadCloud size={22} />
-          </div>
-
-          <div className="photo-preview-grid">
-            {photos.map((photo, index) => (
-              <div key={`${getPhotoUrl(photo)}-${index}`} className="photo-preview">
-                <img src={getPhotoUrl(photo)} alt={`Foto del equipo ${index + 1}`} />
-                <button type="button" onClick={() => removePhoto(index)} title="Quitar foto" aria-label="Quitar foto">
-                  <X size={18} />
-                </button>
+          <section className="photo-uploader">
+            <div className="photo-header">
+              <div>
+                <h2>Evidencia fotografica</h2>
+                <p>{photos.length}/{MAX_PHOTOS} imagenes del estado del equipo</p>
               </div>
-            ))}
-            {photos.length === 0 && <EmptyState text="Aun no hay evidencia fotografica." />}
-          </div>
+              <UploadCloud size={22} />
+            </div>
 
-          <label className={`camera-button ${photos.length >= MAX_PHOTOS ? 'disabled' : ''}`}>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              onChange={handleImageCapture}
-              disabled={photos.length >= MAX_PHOTOS || processingPhotos}
-            />
-            <Camera size={20} />
-            {processingPhotos ? 'Procesando fotos...' : 'Capturar o seleccionar fotos'}
-          </label>
-        </section>
+            <div className="photo-preview-grid">
+              {photos.map((photo, index) => (
+                <div key={`${getPhotoUrl(photo)}-${index}`} className="photo-preview">
+                  <img src={getPhotoUrl(photo)} alt={`Foto del equipo ${index + 1}`} />
+                  <button type="button" onClick={() => removePhoto(index)} title="Quitar foto" aria-label="Quitar foto">
+                    <X size={18} />
+                  </button>
+                </div>
+              ))}
+              {photos.length === 0 && <EmptyState text="Aun no hay evidencia fotografica." />}
+            </div>
+
+            <label className={`camera-button ${photos.length >= MAX_PHOTOS ? 'disabled' : ''}`}>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                onChange={handleImageCapture}
+                disabled={photos.length >= MAX_PHOTOS || processingPhotos}
+              />
+              <Camera size={20} />
+              {processingPhotos ? 'Procesando fotos...' : 'Capturar o seleccionar fotos'}
+            </label>
+          </section>
+        </fieldset>
 
         <div className="form-actions">
           <button type="submit" className="primary-button" disabled={saving || processingPhotos}>
@@ -1124,6 +1316,47 @@ function SelectField({ label, options, className = '', ...props }) {
         ))}
       </select>
     </label>
+  );
+}
+
+function PatternLockField({ label, value = [], onChange, className = '' }) {
+  const pattern = Array.isArray(value) ? value : [];
+
+  const togglePoint = (point) => {
+    if (pattern.includes(point)) {
+      onChange(pattern.filter((p) => p !== point));
+    } else {
+      onChange([...pattern, point]);
+    }
+  };
+
+  return (
+    <div className={`field pattern-field ${className}`}>
+      <div className="pattern-heading">
+        <span>{label}</span>
+        <button type="button" className="pattern-clear" onClick={() => onChange([])} disabled={!pattern.length}>
+          Limpiar
+        </button>
+      </div>
+      <div className="pattern-lock" aria-label="Selector de patron del equipo">
+        {Array.from({ length: 9 }, (_, index) => {
+          const point = index + 1;
+          const order = pattern.indexOf(point) + 1;
+          return (
+            <button
+              key={point}
+              type="button"
+              className={`pattern-point ${order ? 'selected' : ''}`}
+              onClick={() => togglePoint(point)}
+              aria-label={`Punto ${point}${order ? `, orden ${order}` : ''}`}
+            >
+              {order || ''}
+            </button>
+          );
+        })}
+      </div>
+      <small>{pattern.length ? `Patron guardado: ${pattern.join('-')}` : 'Opcional si el equipo no tiene PIN o contrasena.'}</small>
+    </div>
   );
 }
 
