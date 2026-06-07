@@ -57,6 +57,8 @@ const emptyRepair = {
   observaciones: '',
   dias_garantia: '',
   precio: '',
+  abono: '',
+  metodo_pago: '',
   clave_equipo: '',
   patron_equipo: [],
   estado: 'Recibido',
@@ -142,8 +144,9 @@ const buildRepairWhatsAppMessage = (repair) => {
 
 const openRepairWhatsApp = (repair) => {
   const phone = String(repair.telefono || '').replace(/\D/g, '');
+  const phoneWithCountryCode = phone ? `57${phone}` : '';
   const text = encodeURIComponent(buildRepairWhatsAppMessage(repair));
-  const phoneParam = phone ? `phone=${phone}&` : '';
+  const phoneParam = phoneWithCountryCode ? `phone=${phoneWithCountryCode}&` : '';
   window.open(`https://api.whatsapp.com/send?${phoneParam}text=${text}`, '_blank', 'noopener,noreferrer');
 };
 
@@ -826,7 +829,8 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
               <div><dt>Observacion</dt><dd>{repair.observaciones}</dd></div>
               <div><dt>Garantia</dt><dd>{repair.dias_garantia || 0} dias</dd></div>
               <div><dt>Condicion</dt><dd>{repair.estado_recepcion || 'Sin dato'}</dd></div>
-              <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}</dd></div>
+              <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}{repair.estado === 'Entregado' && repair.metodo_pago ? ` (${repair.metodo_pago})` : ''}</dd></div>
+              {repair.abono && <div><dt>Abono</dt><dd>{formatMoney(repair.abono)}</dd></div>}
               <div><dt>Recibido por</dt><dd>{repair.recibido_por}</dd></div>
               <div><dt>Ingreso</dt><dd>{formatDate(repair.fecha_ingreso)}</dd></div>
               <div><dt>Actualizado</dt><dd>{repair.fecha_actualizacion ? formatDate(repair.fecha_actualizacion) : 'Sin cambios'}</dd></div>
@@ -905,6 +909,7 @@ function RepairForm({ initialData, onComplete }) {
   const [saving, setSaving] = useState(false);
   const [processingPhotos, setProcessingPhotos] = useState(false);
   const [showPhotoWarning, setShowPhotoWarning] = useState(false);
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -991,6 +996,12 @@ function RepairForm({ initialData, onComplete }) {
       const uploadedPhotos = await uploadPhotos(recordId, now);
       const becameDelivered = formData.estado === 'Entregado' && initialData?.estado !== 'Entregado';
 
+      if (formData.estado === 'Entregado' && !formData.metodo_pago) {
+        setShowPaymentMethodModal(true);
+        setSaving(false);
+        return;
+      }
+
       const payload = {
         nombre: formData.nombre.trim(),
         apellido: formData.apellido.trim(),
@@ -1004,6 +1015,8 @@ function RepairForm({ initialData, onComplete }) {
         observaciones: formData.observaciones.trim(),
         dias_garantia: Number.parseInt(formData.dias_garantia, 10) || 0,
         precio: parseAmount(formData.precio),
+        abono: parseAmount(formData.abono) || 0,
+        metodo_pago: formData.metodo_pago || null,
         clave_equipo: formData.clave_equipo.trim(),
         patron_equipo: Array.isArray(formData.patron_equipo) ? formData.patron_equipo : [],
         estado: formData.estado,
@@ -1070,6 +1083,7 @@ function RepairForm({ initialData, onComplete }) {
           <TextAreaField label="Observaciones" name="observaciones" value={formData.observaciones} onChange={handleChange} required className="wide" />
           <InputField label="Dias de garantia" name="dias_garantia" type="number" min="0" value={formData.dias_garantia} onChange={handleChange} required />
           <InputField label="Precio total" name="precio" type="number" min="0" step="100" value={formData.precio} onChange={handleChange} required />
+          <InputField label="Abono" name="abono" type="number" min="0" step="100" value={formData.abono} onChange={handleChange} />
           <SelectField label="Condicion de recepcion" name="estado_recepcion" value={formData.estado_recepcion} onChange={handleChange} options={RECEPTION_OPTIONS} required />
           <SelectField label="Estado de reparacion" name="estado" value={formData.estado} onChange={handleChange} options={STATUS_OPTIONS} required />
           <InputField label="Recibido por" name="recibido_por" value={formData.recibido_por} onChange={handleChange} required />
@@ -1138,8 +1152,36 @@ function RepairForm({ initialData, onComplete }) {
             setShowPhotoWarning(false);
             saveRepair();
           }}
-          disabled={saving}
         />
+      )}
+
+      {showPaymentMethodModal && (
+        <ConfirmModal
+          title="Seleccionar metodo de pago"
+          message="El equipo ha sido marcado como entregado. Por favor selecciona el metodo de pago."
+          confirmText="Guardar"
+          onCancel={() => {
+            setShowPaymentMethodModal(false);
+            setFormData((current) => ({ ...current, estado: initialData?.estado || 'Recibido' }));
+          }}
+          onConfirm={() => {
+            setShowPaymentMethodModal(false);
+            saveRepair();
+          }}
+        >
+          <div style={{ marginTop: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Metodo de pago:</label>
+            <select
+              value={formData.metodo_pago}
+              onChange={(e) => setFormData((current) => ({ ...current, metodo_pago: e.target.value }))}
+              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+            >
+              <option value="">Seleccionar...</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia">Transferencia</option>
+            </select>
+          </div>
+        </ConfirmModal>
       )}
     </section>
   );
@@ -1373,13 +1415,14 @@ function PatternLockField({ label, value = [], onChange, className = '' }) {
   );
 }
 
-function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, disabled, destructive = false }) {
+function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, disabled, destructive = false, children }) {
   return (
     <div className="modal-backdrop" role="presentation">
       <div className={`modal-panel ${destructive ? 'destructive' : ''}`} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <AlertTriangle size={32} />
         <h2 id="confirm-title">{title}</h2>
         <p>{message}</p>
+        {children}
         <div className="button-row">
           <button type="button" className="ghost-button" onClick={onCancel} disabled={disabled}>Cancelar</button>
           <button type="button" className={destructive ? 'danger-button' : 'warning-button'} onClick={onConfirm} disabled={disabled}>

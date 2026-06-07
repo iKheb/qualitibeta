@@ -534,7 +534,7 @@ pre {
 .danger-button,
 .warning-button,
 .ghost-button {
-  min-height: var(--control-height);
+  min-height: 2.5rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -599,7 +599,12 @@ pre {
   gap: 1rem;
 }
 
-fieldset,
+fieldset {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+  fieldset,
 .expense-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -704,8 +709,8 @@ legend {
   outline: 0;
   background: #030712;
   color: var(--text);
-  min-height: var(--control-height);
-  padding: 0.78rem 0.85rem;
+  min-height: 2.5rem;
+  padding: 0.6rem 0.7rem;
 }
 
 .field textarea {
@@ -1056,6 +1061,11 @@ td {
   .metric-grid,
   .dashboard-grid,
   .repair-grid,
+  fieldset {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
   fieldset,
   .expense-form,
   .photo-preview-grid {
@@ -1069,6 +1079,11 @@ td {
   .panel,
   .repair-card,
   .photo-uploader,
+  fieldset {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
   fieldset,
   .expense-form {
     padding: 0.85rem;
