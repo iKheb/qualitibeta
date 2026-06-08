@@ -17,6 +17,8 @@ create table if not exists public.repairs (
   observaciones text not null,
   dias_garantia integer not null default 0,
   precio numeric(14, 2) not null default 0,
+  abono numeric(14, 2) not null default 0,
+  metodo_pago text,
   clave_equipo text not null default '',
   patron_equipo jsonb not null default '[]'::jsonb,
   estado text not null default 'Recibido' check (estado in ('Recibido', 'Reparado', 'Garantia', 'Entregado', 'Devuelto')),
@@ -26,9 +28,8 @@ create table if not exists public.repairs (
 );
 
 alter table public.repairs
-  add column if not exists recibido_por text not null default '',
-  add column if not exists clave_equipo text not null default '',
-  add column if not exists patron_equipo jsonb not null default '[]'::jsonb;
+  add column if not exists abono numeric(14, 2) not null default 0,
+  add column if not exists metodo_pago text;
 
 alter table public.repairs drop constraint if exists repairs_estado_check;
 alter table public.repairs

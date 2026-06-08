@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  Bell,
   Calendar,
   Camera,
   CheckCircle2,
@@ -21,7 +20,6 @@ import {
   Smartphone,
   Trash2,
   UploadCloud,
-  Wrench,
   X,
 } from 'lucide-react';
 import { PHOTO_BUCKET, isSupabaseConfigured, supabase } from './supabaseClient';
