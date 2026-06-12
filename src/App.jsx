@@ -24,6 +24,10 @@ import {
 } from 'lucide-react';
 import { PHOTO_BUCKET, isSupabaseConfigured, supabase } from './supabaseClient';
 import LogsView from './LogsView';
+import { ToastContainer, useToast } from './components/Toast';
+import { SkeletonCard, SkeletonStat, SkeletonRow } from './components/Skeleton';
+import { ProgressBar, ProgressIndicator } from './components/Progress';
+import { Badge, StatusIndicator } from './components/Badge';
 
 const ACCESS_PASSWORDS = {
   basic: import.meta.env.VITE_ACCESS_PASSWORD || '25913229',
@@ -207,6 +211,7 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(() => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
   const [notificationStatus, setNotificationStatus] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+  const { toasts, removeToast, success, error: toastError, info } = useToast();
 
   const loadData = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -398,50 +403,53 @@ function App() {
   }
 
   return (
-    <Shell
-      activeTab={activeTab}
-      navigate={navigate}
-      onLock={lockSession}
-      userRole={userRole}
-      onInstall={installPrompt && !isInstalled ? installApp : null}
-      onEnableNotifications={notificationStatus !== 'unsupported' ? enableNotifications : null}
-      notificationStatus={notificationStatus}
-    >
-      {error && <SystemMessage type="error" message={error} />}
+    <>
+      <Shell
+        activeTab={activeTab}
+        navigate={navigate}
+        onLock={lockSession}
+        userRole={userRole}
+        onInstall={installPrompt && !isInstalled ? installApp : null}
+        onEnableNotifications={notificationStatus !== 'unsupported' ? enableNotifications : null}
+        notificationStatus={notificationStatus}
+      >
+        {error && <SystemMessage type="error" message={error} />}
 
-      {activeTab === 'dashboard' && (
-        <Dashboard
-          finance={finance}
-          repairs={repairs}
-          expenses={expenses}
-          onEdit={(repair) => navigate('new', repair)}
-          userRole={userRole}
-          onEnableNotifications={enableNotifications}
-          notificationStatus={notificationStatus}
-        />
-      )}
+        {activeTab === 'dashboard' && (
+          <Dashboard
+            finance={finance}
+            repairs={repairs}
+            expenses={expenses}
+            onEdit={(repair) => navigate('new', repair)}
+            userRole={userRole}
+            onEnableNotifications={enableNotifications}
+            notificationStatus={notificationStatus}
+          />
+        )}
 
-      {activeTab === 'list' && (
-        <RepairList
-          repairs={repairs}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          onEdit={(repair) => navigate('new', repair)}
-        />
-      )}
+        {activeTab === 'list' && (
+          <RepairList
+            repairs={repairs}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            onEdit={(repair) => navigate('new', repair)}
+          />
+        )}
 
-      {activeTab === 'new' && (
-        <RepairForm initialData={currentRepair} onComplete={() => navigate('list')} />
-      )}
+        {activeTab === 'new' && (
+          <RepairForm initialData={currentRepair} onComplete={() => navigate('list')} />
+        )}
 
-      {activeTab === 'expenses' && (
-        <ExpenseForm expenses={expenses} />
-      )}
+        {activeTab === 'expenses' && (
+          <ExpenseForm expenses={expenses} />
+        )}
 
-      {activeTab === 'logs' && (
-        <LogsView logs={logs} />
-      )}
-    </Shell>
+        {activeTab === 'logs' && (
+          <LogsView logs={logs} />
+        )}
+      </Shell>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </>
   );
 }
 
@@ -828,7 +836,7 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
               <div><dt>Garantia</dt><dd>{repair.dias_garantia || 0} dias</dd></div>
               <div><dt>Condicion</dt><dd>{repair.estado_recepcion || 'Sin dato'}</dd></div>
               <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}{repair.estado === 'Entregado' && repair.metodo_pago ? ` (${repair.metodo_pago})` : ''}</dd></div>
-              {repair.abono && <div><dt>Abono</dt><dd>{formatMoney(repair.abono)}</dd></div>}
+              {repair.abono && repair.abono > 0 && <div><dt>Abono</dt><dd>{formatMoney(repair.abono)}</dd></div>}
               <div><dt>Recibido por</dt><dd>{repair.recibido_por}</dd></div>
               <div><dt>Ingreso</dt><dd>{formatDate(repair.fecha_ingreso)}</dd></div>
               <div><dt>Actualizado</dt><dd>{repair.fecha_actualizacion ? formatDate(repair.fecha_actualizacion) : 'Sin cambios'}</dd></div>
