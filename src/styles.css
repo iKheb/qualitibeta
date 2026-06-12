@@ -571,6 +571,10 @@ pre {
   color: #ffffff;
 }
 
+.danger-button svg {
+  color: #fee2e2;
+}
+
 .warning-button {
   border-color: var(--yellow);
   background: var(--yellow);
