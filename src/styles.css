@@ -933,6 +933,11 @@ td {
   color: var(--blue);
 }
 
+.login-icon {
+  margin: 0 auto;
+  display: block;
+}
+
 .login-card h1,
 .setup-panel h1 {
   margin: 0;
@@ -2666,6 +2671,60 @@ html {
   color: var(--text);
   cursor: pointer;
   user-select: none;
+}
+
+/* Login Remember Checkbox */
+.remember-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 0.75rem;
+}
+
+.remember-checkbox input {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: var(--blue);
+}
+
+/* Biometric Button */
+.biometric-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  margin-top: 0.75rem;
+}
+
+.biometric-button:hover:not(:disabled) {
+  background: var(--panel-strong);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.biometric-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.biometric-button svg {
+  color: var(--blue);
 }
 
 /* Pull to Refresh */
