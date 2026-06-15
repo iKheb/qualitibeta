@@ -8,6 +8,7 @@ import {
   ClipboardList,
   DollarSign,
   Edit3,
+  Fingerprint,
   Image as ImageIcon,
   List,
   Lock,
@@ -28,9 +29,10 @@ import { ToastContainer, useToast } from './components/Toast';
 import { SkeletonCard, SkeletonStat, SkeletonRow } from './components/Skeleton';
 import { ProgressBar, ProgressIndicator } from './components/Progress';
 import { Badge, StatusIndicator } from './components/Badge';
+import { playSuccessSound, playDeleteSound, playUpdateSound, playErrorSound } from './utils/sounds';
 
 const ACCESS_PASSWORDS = {
-  basic: import.meta.env.VITE_ACCESS_PASSWORD || '25913229',
+  basic: import.meta.env.VITE_ACCESS_PASSWORD || '2591',
   admin: '11316828',
 };
 const MAX_PHOTOS = 8;
@@ -520,15 +522,134 @@ function Shell({ activeTab, navigate, onLock, userRole, onInstall, onEnableNotif
 function LoginScreen({ onUnlock }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(() => {
+    return localStorage.getItem('quality-remember-password') === 'true';
+  });
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  useEffect(() => {
+    if (rememberPassword) {
+      const savedPassword = localStorage.getItem('quality-saved-password');
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+    }
+
+    // Check if biometric authentication is available
+    if (window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then((available) => {
+          setBiometricAvailable(available);
+        })
+        .catch(() => {
+          setBiometricAvailable(false);
+        });
+    }
+  }, [rememberPassword]);
+
+  const handleRememberChange = (event) => {
+    const checked = event.target.checked;
+    setRememberPassword(checked);
+    localStorage.setItem('quality-remember-password', checked.toString());
+    if (!checked) {
+      localStorage.removeItem('quality-saved-password');
+    }
+  };
+
+  const registerBiometric = async () => {
+    if (!biometricAvailable) return;
+
+    try {
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: new Uint8Array(32),
+          rp: {
+            name: 'Quality',
+            id: window.location.hostname,
+          },
+          user: {
+            id: new Uint8Array(16),
+            name: 'quality-user',
+            displayName: 'Quality User',
+          },
+          pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required',
+          },
+        },
+      });
+
+      if (credential) {
+        localStorage.setItem('quality-biometric-id', btoa(String.fromCharCode(...new Uint8Array(credential.rawId))));
+        localStorage.setItem('quality-biometric-role', 'basic');
+      }
+    } catch (error) {
+      console.error('Biometric registration failed:', error);
+    }
+  };
+
+  const authenticateWithBiometric = async () => {
+    if (!biometricAvailable) return;
+
+    setBiometricLoading(true);
+
+    try {
+      const credentialId = localStorage.getItem('quality-biometric-id');
+      if (!credentialId) {
+        // First time - register biometric
+        await registerBiometric();
+        setBiometricLoading(false);
+        return;
+      }
+
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: new Uint8Array(32),
+          allowCredentials: [{
+            id: Uint8Array.from(atob(credentialId), c => c.charCodeAt(0)),
+            type: 'public-key',
+          }],
+          userVerification: 'required',
+        },
+      });
+
+      if (credential) {
+        const savedRole = localStorage.getItem('quality-biometric-role') || 'basic';
+        onUnlock(savedRole);
+      }
+    } catch (error) {
+      console.error('Biometric authentication failed:', error);
+      setError(true);
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
+  const handleSuccessfulLogin = (role) => {
+    if (rememberPassword) {
+      localStorage.setItem('quality-saved-password', password);
+    } else {
+      localStorage.removeItem('quality-saved-password');
+    }
+
+    // Register biometric if available and not already registered
+    if (biometricAvailable && !localStorage.getItem('quality-biometric-id')) {
+      registerBiometric();
+    }
+
+    onUnlock(role);
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     if (password === ACCESS_PASSWORDS.admin) {
-      onUnlock('admin');
+      handleSuccessfulLogin('admin');
       return;
     }
     if (password === ACCESS_PASSWORDS.basic) {
-      onUnlock('basic');
+      handleSuccessfulLogin('basic');
       return;
     }
 
@@ -555,6 +676,27 @@ function LoginScreen({ onUnlock }) {
           className={error ? 'has-error' : ''}
         />
 
+        <label className="remember-checkbox">
+          <input
+            type="checkbox"
+            checked={rememberPassword}
+            onChange={handleRememberChange}
+          />
+          <span>Recordar contraseña</span>
+        </label>
+
+        {biometricAvailable && (
+          <button
+            type="button"
+            className="biometric-button"
+            onClick={authenticateWithBiometric}
+            disabled={biometricLoading}
+          >
+            <Fingerprint size={20} />
+            {biometricLoading ? 'Verificando...' : 'Ingresar con huella'}
+          </button>
+        )}
+
         {error && <small className="error-text">Acceso denegado</small>}
 
         <button type="submit" className="primary-button">
@@ -577,7 +719,7 @@ function SetupScreen() {
         </p>
         <pre>{`VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co
 VITE_SUPABASE_ANON_KEY=TU_SUPABASE_ANON_KEY
-VITE_ACCESS_PASSWORD=25913229`}</pre>
+VITE_ACCESS_PASSWORD=2591`}</pre>
       </div>
     </div>
   );
@@ -791,8 +933,10 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
     const { error } = await supabase.from('repairs').delete().eq('id', deleteTarget.id);
     if (error) {
       setMessage(`No se pudo eliminar: ${error.message}`);
+      playErrorSound();
     } else {
       setDeleteTarget(null);
+      playDeleteSound();
     }
 
     setBusy(false);
@@ -833,10 +977,10 @@ function RepairList({ repairs, searchTerm, setSearchTerm, onEdit }) {
             <dl className="record-details">
               <div><dt>Reparacion</dt><dd>{repair.reparacion}</dd></div>
               <div><dt>Observacion</dt><dd>{repair.observaciones}</dd></div>
-              <div><dt>Garantia</dt><dd>{repair.dias_garantia || 0} dias</dd></div>
+              {repair.dias_garantia !== null && repair.dias_garantia !== undefined && repair.dias_garantia !== 0 && repair.dias_garantia > 0 && <div><dt>Garantia</dt><dd>{repair.dias_garantia} dias</dd></div>}
               <div><dt>Condicion</dt><dd>{repair.estado_recepcion || 'Sin dato'}</dd></div>
-              <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}{repair.estado === 'Entregado' && repair.metodo_pago ? ` (${repair.metodo_pago})` : ''}</dd></div>
-              {repair.abono && repair.abono > 0 && <div><dt>Abono</dt><dd>{formatMoney(repair.abono)}</dd></div>}
+              {repair.precio !== null && repair.precio !== undefined && repair.precio !== 0 && repair.precio > 0 && <div><dt>Precio</dt><dd>{formatMoney(repair.precio)}{repair.estado === 'Entregado' && repair.metodo_pago ? ` (${repair.metodo_pago})` : ''}</dd></div>}
+              {repair.abono !== null && repair.abono !== undefined && repair.abono !== 0 && repair.abono > 0 && <div><dt>Abono</dt><dd>{formatMoney(repair.abono)}</dd></div>}
               <div><dt>Recibido por</dt><dd>{repair.recibido_por}</dd></div>
               <div><dt>Ingreso</dt><dd>{formatDate(repair.fecha_ingreso)}</dd></div>
               <div><dt>Actualizado</dt><dd>{repair.fecha_actualizacion ? formatDate(repair.fecha_actualizacion) : 'Sin cambios'}</dd></div>
@@ -1020,7 +1164,7 @@ function RepairForm({ initialData, onComplete }) {
         reparacion: formData.reparacion.trim(),
         observaciones: formData.observaciones.trim(),
         dias_garantia: Number.parseInt(formData.dias_garantia, 10) || 0,
-        precio: parseAmount(formData.precio),
+        precio: parseAmount(formData.precio) || 0,
         abono: parseAmount(formData.abono) || 0,
         metodo_pago: formData.metodo_pago || null,
         clave_equipo: formData.clave_equipo.trim(),
@@ -1046,8 +1190,10 @@ function RepairForm({ initialData, onComplete }) {
       }
 
       onComplete();
+      playSuccessSound();
     } catch (error) {
       setMessage(`No pude guardar el registro: ${error.message}`);
+      playErrorSound();
     } finally {
       setSaving(false);
     }
@@ -1231,8 +1377,10 @@ function ExpenseForm({ expenses }) {
 
     if (response.error) {
       setMessage(`No pude guardar el gasto: ${response.error.message}`);
+      playErrorSound();
     } else {
       resetForm();
+      playSuccessSound();
     }
 
     setSaving(false);
@@ -1252,8 +1400,10 @@ function ExpenseForm({ expenses }) {
     const { error } = await supabase.from('expenses').delete().eq('id', deleteTarget.id);
     if (error) {
       setMessage(`No se pudo eliminar el gasto: ${error.message}`);
+      playErrorSound();
     } else {
       setDeleteTarget(null);
+      playDeleteSound();
     }
 
     setSaving(false);
